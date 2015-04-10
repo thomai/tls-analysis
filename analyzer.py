@@ -152,6 +152,45 @@ def cert_key_length():
         print generate_output('Keylength ' + key_size, key_size_count[key_size], count_all)
 
 
+def cert_chain_validation():
+    collection = get_collection('certinfo')
+    all_documents = collection.find({})
+    count_all = all_documents.count()
+
+    results = {'self signed certificate': 0,
+               'ok': 0,
+               'unable to get local issuer certificate': 0,
+               'certificate has expired': 0,
+               'self signed certificate in certificate chain': 0,
+               'unsupported certificate purpose': 0}
+
+    all_validations_ok_count = 0
+    all_validations_selfsigned_count = 0
+    all_validations_other_result_count = 0
+    for document in all_documents:
+        if 'certificateValidations' in document['results']:
+            validations = document['results']['certificateValidations']
+            all_validations_ok = True
+            all_validations_selfsigned = True
+            for validation in validations:
+                if 'validationResult' in validation:
+                    validation_result = validation['validationResult']
+                    if not 'ok' in validation_result:
+                        all_validations_ok = False
+                    if not 'self signed certificate' in validation_result:
+                        all_validations_selfsigned = False
+            if all_validations_ok:
+                all_validations_ok_count += 1
+            elif all_validations_selfsigned:
+                all_validations_selfsigned_count += 1
+            else:
+                all_validations_other_result_count += 1
+
+    print all_validations_ok_count
+    print all_validations_selfsigned_count
+    print all_validations_other_result_count
+
+
 def main():
     #dane_support()
     #heartbleed_vulnerability()
@@ -161,7 +200,8 @@ def main():
     #tls_support('tlsv1_1')
     #tls_support('tlsv1_2')
     #cert_validity()
-    cert_key_length()
+    #cert_key_length()
+    cert_chain_validation()
     pass
 
 
