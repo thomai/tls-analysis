@@ -25,7 +25,14 @@ def generate_output(text, findings, base_value):
     return text + ':\t\t' + str(findings) + '/' + str(base_value) + percent_output(findings, base_value)
 
 
+def generate_headline_output(text):
+    output = ('-' * 70) + '\n' + text.upper() + '\n'
+    output += ('=' * len(text))
+    return output
+
+
 def dane_support():
+    print generate_headline_output('dane support')
     collection = get_collection('dane')
     all_documents = collection.find({})
 
@@ -49,6 +56,7 @@ def dane_support():
 
 
 def heartbleed_vulnerability():
+    print generate_headline_output('heartbleed vulnerability')
     collection = get_collection('heartbleed')
     all_documents = collection.find({})
 
@@ -58,6 +66,7 @@ def heartbleed_vulnerability():
 
 
 def tls_support(tls_version):
+    print generate_headline_output('tls support for ' + tls_version)
     collection = get_collection(tls_version)
     all_documents = collection.find()
 
@@ -66,7 +75,8 @@ def tls_support(tls_version):
     print generate_output('Targets which support ' + tls_version, findings, base_value)
 
 
-def cert_validity():
+def cert_validity_with_key_length():
+    print generate_headline_output('certificate validity with key length')
     collection = get_collection('certinfo')
     all_documents = collection.find({})
 
@@ -121,6 +131,7 @@ def cert_validity():
 
 
 def cert_key_length():
+    print generate_headline_output('certificate key length')
     collection = get_collection('certinfo')
     all_documents = collection.find({})
     count_all = all_documents.count()
@@ -153,6 +164,7 @@ def cert_key_length():
 
 
 def cert_chain_validation():
+    print generate_headline_output('certificate chain validation')
     collection = get_collection('certinfo')
     all_documents = collection.find({})
     count_all = all_documents.count()
@@ -162,33 +174,92 @@ def cert_chain_validation():
                'unable to get local issuer certificate': 0,
                'certificate has expired': 0,
                'self signed certificate in certificate chain': 0,
-               'unsupported certificate purpose': 0}
+               'unsupported certificate purpose': 0,
+               'others': 0}
 
-    all_validations_ok_count = 0
-    all_validations_selfsigned_count = 0
-    all_validations_other_result_count = 0
     for document in all_documents:
         if 'certificateValidations' in document['results']:
-            validations = document['results']['certificateValidations']
-            all_validations_ok = True
-            all_validations_selfsigned = True
-            for validation in validations:
+            all_validations = {'self signed certificate': True,
+                               'ok': True,
+                               'unable to get local issuer certificate': True,
+                               'certificate has expired': True,
+                               'self signed certificate in certificate chain': True,
+                               'unsupported certificate purpose': True}
+
+            # Run through trust store validation results
+            for validation in document['results']['certificateValidations']:
                 if 'validationResult' in validation:
                     validation_result = validation['validationResult']
-                    if not 'ok' in validation_result:
-                        all_validations_ok = False
                     if not 'self signed certificate' in validation_result:
-                        all_validations_selfsigned = False
-            if all_validations_ok:
-                all_validations_ok_count += 1
-            elif all_validations_selfsigned:
-                all_validations_selfsigned_count += 1
-            else:
-                all_validations_other_result_count += 1
+                        all_validations['self signed certificate'] = False
+                    if not 'ok' in validation_result:
+                        all_validations['ok'] = False
+                    if not 'unable to get local issuer certificate' in validation_result:
+                        all_validations['unable to get local issuer certificate'] = False
+                    if not 'certificate has expired' in validation_result:
+                        all_validations['certificate has expired'] = False
+                    if not 'self signed certificate in certificate chain' in validation_result:
+                        all_validations['self signed certificate in certificate chain'] = False
+                    if not 'unsupported certificate purpose' in validation_result:
+                        all_validations['unsupported certificate purpose'] = False
 
-    print all_validations_ok_count
-    print all_validations_selfsigned_count
-    print all_validations_other_result_count
+            found_one = False
+            for validation_result in all_validations:
+                if all_validations[validation_result]:
+                    results[validation_result] += 1
+                    found_one = True
+                    break
+            if not found_one:
+                results['others'] += 1
+
+    for key in sorted(results):
+        print generate_output(key, results[key], count_all)
+
+
+def cert_validity():
+    print generate_headline_output('certificate validity')
+    collection = get_collection('certinfo')
+    all_documents = collection.find({})
+
+    validity_days_amount = {}
+
+    validity_sum = 0
+    validity_sum_counter = 0
+
+    date_format_1 = '%b %d %H:%M:%S %Y %Z'
+    date_format_2 = '%b %d %H:%M:%S %Y'
+    for document in all_documents:
+        results = document['results']
+        if 'certificateChain' in results:
+            cert = results['certificateChain'][0]
+            if 'rsaEncryption' in cert['subjectPublicKeyInfo']['publicKeyAlgorithm']:
+                validity = cert['validity']
+                not_before, not_after = validity['notBefore'], validity['notAfter']
+                try:
+                    not_before_date = datetime.strptime(not_before, date_format_1)
+                except ValueError:
+                    not_before_date = datetime.strptime(not_before, date_format_2)
+                try:
+                    not_after_date = datetime.strptime(not_after, date_format_1)
+                except ValueError:
+                    not_after_date = datetime.strptime(not_after, date_format_2)
+
+                delta = not_after_date - not_before_date
+                delta_years = delta.days/365
+                validity_sum += delta_years
+                validity_sum_counter += 1
+                if delta_years in validity_days_amount:
+                    validity_days_amount[delta_years] += 1
+                else:
+                    validity_days_amount[delta_years] = 1
+
+    print 'Average validity period in years: ' + str(validity_sum/float(validity_sum_counter))
+
+    # Tikz scatter chart output
+    #for days in sorted(validity_days_amount):
+    #    amount = validity_days_amount[days]
+    #    if 0 < days <= 40:# and amount > 10:
+    #        print '(' + str(days) + ',' + str(amount/100.0) + ')'
 
 
 def main():
@@ -199,9 +270,10 @@ def main():
     #tls_support('tlsv1')
     #tls_support('tlsv1_1')
     #tls_support('tlsv1_2')
-    #cert_validity()
+    #cert_validity_with_key_length()
     #cert_key_length()
-    cert_chain_validation()
+    #cert_chain_validation()
+    cert_validity()
     pass
 
 
