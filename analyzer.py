@@ -1,4 +1,5 @@
 import pymongo
+from datetime import datetime
 
 
 def get_collection(collection_name):
@@ -65,14 +66,103 @@ def tls_support(tls_version):
     print generate_output('Targets which support ' + tls_version, findings, base_value)
 
 
+def cert_validity():
+    collection = get_collection('certinfo')
+    all_documents = collection.find({})
+
+    delta_days_sum = 0
+    count_deltas = {}
+
+    date_format_1 = '%b %d %H:%M:%S %Y %Z'
+    date_format_2 = '%b %d %H:%M:%S %Y'
+    for document in all_documents:
+        results = document['results']
+        if 'certificateChain' in results:
+            cert = results['certificateChain'][0]
+            if 'rsaEncryption' in cert['subjectPublicKeyInfo']['publicKeyAlgorithm']:
+                validity = cert['validity']
+                not_before, not_after = validity['notBefore'], validity['notAfter']
+                try:
+                    not_before_date = datetime.strptime(not_before, date_format_1)
+                except ValueError:
+                    not_before_date = datetime.strptime(not_before, date_format_2)
+                try:
+                    not_after_date = datetime.strptime(not_after, date_format_1)
+                except ValueError:
+                    not_after_date = datetime.strptime(not_after, date_format_2)
+
+                delta = not_after_date - not_before_date
+                delta_days = delta.days
+                delta_years = int(round(delta_days/365.0, 0))
+                #delta_years = delta_days/365
+                delta_days_sum += delta_days
+
+                key_length = int(cert['subjectPublicKeyInfo']['publicKeySize'])
+                if delta_years in count_deltas:
+                    if key_length in count_deltas[delta_years]:
+                        count_deltas[delta_years][key_length] += 1
+                    else:
+                        count_deltas[delta_years][key_length] = 1
+                else:
+                    count_deltas[delta_years] = {key_length: 1}
+
+    avg_delta_days = delta_days_sum/all_documents.count()
+    avg_delta_years = avg_delta_days/365.0
+    print 'Average certificate validity in years:', round(avg_delta_years, 2)
+
+    # Generate tikz chart
+    #for validity in sorted(count_deltas):
+    #    if validity > 0:
+    #        amount_per_key_length = count_deltas[validity]
+    #        for key_length in sorted(amount_per_key_length):
+    #            amount = amount_per_key_length[key_length]
+    #            if amount > 10:
+    #                print str(validity) + '\t' + str(key_length/1000.0) + '\t' + str(amount)
+
+
+def cert_key_length():
+    collection = get_collection('certinfo')
+    all_documents = collection.find({})
+    count_all = all_documents.count()
+
+    key_size_count = {'x<1024': 0,
+                      '1024<=x<2048': 0,
+                      '2048<=x<4096': 0,
+                      '4096<=x<8192': 0,
+                      '8192<=x': 0}
+
+    for document in all_documents:
+        results = document['results']
+        if 'certificateChain' in results:
+            cert = results['certificateChain'][0]
+            if 'rsaEncryption' in cert['subjectPublicKeyInfo']['publicKeyAlgorithm']:
+                key_size = int(cert['subjectPublicKeyInfo']['publicKeySize'])
+                if key_size < 1024:
+                    key_size_count['x<1024'] += 1
+                elif key_size < 2048:
+                    key_size_count['1024<=x<2048'] += 1
+                elif key_size < 4096:
+                    key_size_count['2048<=x<4096'] += 1
+                elif key_size < 8192:
+                    key_size_count['4096<=x<8192'] += 1
+                else:
+                    key_size_count['8192<=x'] += 1
+
+    for key_size in sorted(key_size_count):
+        print generate_output('Keylength ' + key_size, key_size_count[key_size], count_all)
+
+
 def main():
-    dane_support()
-    heartbleed_vulnerability()
-    tls_support('sslv2')
-    tls_support('sslv3')
-    tls_support('tlsv1')
-    tls_support('tlsv1_1')
-    tls_support('tlsv1_2')
+    #dane_support()
+    #heartbleed_vulnerability()
+    #tls_support('sslv2')
+    #tls_support('sslv3')
+    #tls_support('tlsv1')
+    #tls_support('tlsv1_1')
+    #tls_support('tlsv1_2')
+    #cert_validity()
+    cert_key_length()
+    pass
 
 
 if __name__ == "__main__":
