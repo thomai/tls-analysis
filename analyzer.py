@@ -142,8 +142,10 @@ def cert_key_length():
                       '1024<=x<2048': 0,
                       '2048<=x<4096': 0,
                       '4096<=x<8192': 0,
-                      '8192<=x': 0}
+                      '8192<=x': 0,
+                      'other_algorithm_used': 0}
 
+    count_analyzed = 0
     for document in all_documents:
         results = document['results']
         if 'certificateChain' in results:
@@ -160,9 +162,13 @@ def cert_key_length():
                     key_size_count['4096<=x<8192'] += 1
                 else:
                     key_size_count['8192<=x'] += 1
+            else:
+                #print 'Other algorithm used for public key:\t' + str(cert['subjectPublicKeyInfo'])
+                key_size_count['other_algorithm_used'] += 1
+            count_analyzed += 1
 
     for key_size in sorted(key_size_count):
-        print generate_output('Keylength ' + key_size, key_size_count[key_size], count_all)
+        print generate_output('Keylength ' + key_size, key_size_count[key_size], count_analyzed)
 
 
 def cert_chain_validation():
@@ -274,8 +280,8 @@ def main():
     #tls_support('tlsv1')
     #tls_support('tlsv1_1')
     #tls_support('tlsv1_2')
-    cert_validity_with_key_length()
-    #cert_key_length()
+    #cert_validity_with_key_length()
+    cert_key_length()
     #cert_chain_validation()
     #cert_validity()
     pass

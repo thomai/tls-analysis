@@ -7,13 +7,14 @@ rejected=`cat sslyze_log | grep "WARNING: Connection rejected; discarding corres
 finished=`cat sslyze_log | grep "Finished target " | wc -l`
 total=`expr $timeouts + $ehlo + $starttls + $rejected + $finished`
 
-one_p=`expr $total / 100`
-timeouts_p=`expr $timeouts / $one_p`
-ehlo_p=`expr $ehlo / $one_p`
-starttls_p=`expr $starttls / $one_p`
-rejected_p=`expr $rejected / $one_p`
-finished_p=`expr $finished / $one_p`
-total_p=`expr $timeouts_p + $ehlo_p + $starttls_p + $rejected_p + $finished_p`
+scale="scale=2;"
+one_p=`echo "$scale $total / 100" | bc`
+timeouts_p=`echo "$scale $timeouts / $one_p" | bc`
+ehlo_p=`echo "$scale $ehlo / $one_p" | bc`
+starttls_p=`echo "$scale $starttls / $one_p" | bc`
+rejected_p=`echo "$scale $rejected / $one_p" | bc`
+finished_p=`echo "$scale $finished / $one_p" | bc`
+total_p=`echo "$scale $timeouts_p + $ehlo_p + $starttls_p + $rejected_p + $finished_p" | bc`
 
 echo
 echo "SSLYZE LOG EVALUATION"
