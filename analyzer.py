@@ -115,6 +115,8 @@ def cert_validity_with_key_length():
                         count_deltas[delta_years][key_length] = 1
                 else:
                     count_deltas[delta_years] = {key_length: 1}
+            else:
+                print 'Other algorithm used for public key:\t' + str(cert['subjectPublicKeyInfo'])
 
     avg_delta_days = delta_days_sum/all_documents.count()
     avg_delta_years = avg_delta_days/365.0
@@ -252,6 +254,8 @@ def cert_validity():
                     validity_days_amount[delta_years] += 1
                 else:
                     validity_days_amount[delta_years] = 1
+            else:
+                print 'Other algorithm used for public key:\t' + str(cert['subjectPublicKeyInfo'])
 
     print 'Average validity period in years: ' + str(validity_sum/float(validity_sum_counter))
 
@@ -270,10 +274,10 @@ def main():
     #tls_support('tlsv1')
     #tls_support('tlsv1_1')
     #tls_support('tlsv1_2')
-    #cert_validity_with_key_length()
+    cert_validity_with_key_length()
     #cert_key_length()
     #cert_chain_validation()
-    cert_validity()
+    #cert_validity()
     pass
 
 
