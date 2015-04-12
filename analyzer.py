@@ -277,7 +277,7 @@ def cert_validity():
 
 
 def cert_validity_selfsigned_ok():
-    print generate_headline_output('certificate validity')
+    print generate_headline_output('certificate validity comparison')
     collection = get_collection('certinfo')
     all_documents = collection.find({})
 
@@ -346,19 +346,32 @@ def cert_validity_selfsigned_ok():
     #        print '(' + str(days) + ',' + str(amount/100.0) + ')'
 
 
+def check_support_tls_versions():
+    tls_support('sslv2')
+    tls_support('sslv3')
+    tls_support('tlsv1')
+    tls_support('tlsv1_1')
+    tls_support('tlsv1_2')
+
+
+def cipher_suites(tls_version):
+    print generate_headline_output('cipher suites')
+    collection = get_collection(tls_version)
+    all_documents = collection.find({})
+
+    for document in all_documents:
+        print document
+
 def main():
     #dane_support()
     #heartbleed_vulnerability()
-    #tls_support('sslv2')
-    #tls_support('sslv3')
-    #tls_support('tlsv1')
-    #tls_support('tlsv1_1')
-    #tls_support('tlsv1_2')
+    #check_support_tls_versions()
     #cert_validity_with_key_length()
     #cert_key_length()
     #cert_chain_validation()
     #cert_validity()
     #cert_validity_selfsigned_ok()
+    cipher_suites('sslv2')
     pass
 
 
