@@ -146,6 +146,7 @@ def cert_key_length():
                       'other_algorithm_used': 0}
 
     count_analyzed = 0
+    keysize_sum_over_all = 0
     for document in all_documents:
         results = document['results']
         if 'certificateChain' in results:
@@ -162,10 +163,13 @@ def cert_key_length():
                     key_size_count['4096<=x<8192'] += 1
                 else:
                     key_size_count['8192<=x'] += 1
+                keysize_sum_over_all += key_size
             else:
                 #print 'Other algorithm used for public key:\t' + str(cert['subjectPublicKeyInfo'])
                 key_size_count['other_algorithm_used'] += 1
             count_analyzed += 1
+
+    print 'Average keylength: ' + str(keysize_sum_over_all/float(count_analyzed))
 
     for key_size in sorted(key_size_count):
         print generate_output('Keylength ' + key_size, key_size_count[key_size], count_analyzed)
@@ -272,6 +276,76 @@ def cert_validity():
     #        print '(' + str(days) + ',' + str(amount/100.0) + ')'
 
 
+def cert_validity_selfsigned_ok():
+    print generate_headline_output('certificate validity')
+    collection = get_collection('certinfo')
+    all_documents = collection.find({})
+
+    validity_days_amount = {'selfsigned': {},
+                            'validated': {}}
+
+    validity_sum = {'selfsigned': 0,
+                    'validated': 0}
+    validity_sum_counter = {'selfsigned': 0,
+                            'validated': 0}
+
+    date_format_1 = '%b %d %H:%M:%S %Y %Z'
+    date_format_2 = '%b %d %H:%M:%S %Y'
+    for document in all_documents:
+        results = document['results']
+        if 'certificateChain' in results:
+            cert = results['certificateChain'][0]
+            if 'rsaEncryption' in cert['subjectPublicKeyInfo']['publicKeyAlgorithm']:
+                validity = cert['validity']
+                not_before, not_after = validity['notBefore'], validity['notAfter']
+                try:
+                    not_before_date = datetime.strptime(not_before, date_format_1)
+                except ValueError:
+                    not_before_date = datetime.strptime(not_before, date_format_2)
+                try:
+                    not_after_date = datetime.strptime(not_after, date_format_1)
+                except ValueError:
+                    not_after_date = datetime.strptime(not_after, date_format_2)
+
+                delta = not_after_date - not_before_date
+                delta_years = delta.days/365
+                validation_result = None
+                for validation in document['results']['certificateValidations']:
+                    if 'validationResult' in validation and 'ok' in validation['validationResult']:
+                        validation_result = 'validated'
+                        break
+                if not validation_result:
+                    for validation in document['results']['certificateValidations']:
+                        if 'validationResult' in validation and 'self signed certificate' in validation['validationResult']:
+                            validation_result = 'selfsigned'
+                            break
+                if validation_result:
+                    validity_sum[validation_result] += delta_years
+                    validity_sum_counter[validation_result] += 1
+                    if delta_years in validity_days_amount[validation_result]:
+                        validity_days_amount[validation_result][delta_years] += 1
+                    else:
+                        validity_days_amount[validation_result][delta_years] = 1
+            else:
+                print 'Other algorithm used for public key:\t' + str(cert['subjectPublicKeyInfo'])
+
+    print 'Average validity period in years for selfsigned certs: ' + str(validity_sum['selfsigned']/float(validity_sum_counter['selfsigned']))
+    print 'Average validity period in years for validated certs: ' + str(validity_sum['validated']/float(validity_sum_counter['validated']))
+
+    # Tikz scatter chart output
+    #print '\n=> SELF-SIGNED'
+    #for days in sorted(validity_days_amount['selfsigned']):
+    #    amount = validity_days_amount['selfsigned'][days]
+    #    if 0 < days <= 40:# and amount > 10:
+    #        print '(' + str(days) + ',' + str(amount/100.0) + ')'
+
+    #print '\n=> VALIDATED'
+    #for days in sorted(validity_days_amount['validated']):
+    #    amount = validity_days_amount['validated'][days]
+    #    if 0 < days <= 40:# and amount > 10:
+    #        print '(' + str(days) + ',' + str(amount/100.0) + ')'
+
+
 def main():
     #dane_support()
     #heartbleed_vulnerability()
@@ -281,9 +355,10 @@ def main():
     #tls_support('tlsv1_1')
     #tls_support('tlsv1_2')
     #cert_validity_with_key_length()
-    cert_key_length()
+    #cert_key_length()
     #cert_chain_validation()
     #cert_validity()
+    #cert_validity_selfsigned_ok()
     pass
 
 
