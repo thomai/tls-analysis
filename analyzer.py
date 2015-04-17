@@ -407,7 +407,8 @@ def cipher_suites(tls_version):
             recommendation_type = 'bad'
         usage_sum[recommendation_type] += cs_usage/float(counter)
         usage_counter[recommendation_type] += 1
-        print recommendation_type + ': ' + generate_output(cs_name, cs_usage, counter)
+        if 'good' in recommendation_type:
+            print recommendation_type + ': ' + generate_output(cs_name, cs_usage, counter)
     #if not usage_counter['bad'] == 0:
     #    print 'Bad percentage:', usage_sum['bad']/usage_counter['bad']
     #if not usage_counter['good'] == 0:
@@ -415,10 +416,10 @@ def cipher_suites(tls_version):
 
 
 def check_support_cipher_suites_for_tls_versions():
-    #cipher_suites('sslv2')
-    #cipher_suites('sslv3')
-    #cipher_suites('tlsv1')
-    #cipher_suites('tlsv1_1')
+    cipher_suites('sslv2')
+    cipher_suites('sslv3')
+    cipher_suites('tlsv1')
+    cipher_suites('tlsv1_1')
     cipher_suites('tlsv1_2')
 
 
@@ -483,6 +484,41 @@ def bsi_check():
     check_support_not_only_bsi_recommended_cipher_suites()
 
 
+def check_ciphers_for_pattern(tls_version, pattern):
+    print generate_headline_output('check for pattern \"' + pattern + '\" cipher suites for ' + tls_version)
+    collection = get_collection(tls_version)
+    all_documents = collection.find({})
+
+    found_ciphers = {}
+    counter = 0
+    for document in all_documents:
+        target_results = document['results']
+        if 'isProtocolSupported' in target_results and target_results['isProtocolSupported']:
+            if 'results' in document:
+                target_results = document['results']
+                if 'acceptedCipherSuites' in target_results:
+                    accepted_suites = target_results['acceptedCipherSuites']
+                    counter += 1
+                    for cipher_suite in accepted_suites:
+                        name = cipher_suite['name']
+                        if pattern in name:
+                            if name in found_ciphers:
+                                found_ciphers[name] += 1
+                            else:
+                                found_ciphers[name] = 1
+
+    for cs_name, cs_usage in sorted(found_ciphers.items(), key=lambda x: x[1], reverse=True):
+        print generate_output(cs_name, cs_usage, counter)
+
+
+def check_ciphers_for_all_versions_for_pattern(pattern):
+    check_ciphers_for_pattern('sslv2', pattern)
+    check_ciphers_for_pattern('sslv3', pattern)
+    check_ciphers_for_pattern('tlsv1', pattern)
+    check_ciphers_for_pattern('tlsv1_1', pattern)
+    check_ciphers_for_pattern('tlsv1_2', pattern)
+
+
 def main():
     #dane_support()
     #cert_chain_validation()
@@ -491,11 +527,9 @@ def main():
     #check_support_tls_versions()
     #check_support_cipher_suites_for_tls_versions()
     #bsi_check()
+    #check_ciphers_for_all_versions_for_pattern('NULL')
+    check_ciphers_for_all_versions_for_pattern('EXP')
     #heartbleed_vulnerability()
-
-    #cert_validity()
-    #cert_validity_with_key_length()
-    pass
 
 
 if __name__ == "__main__":
