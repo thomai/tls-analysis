@@ -2,6 +2,29 @@ import pymongo
 from datetime import datetime
 
 
+# Cipher Suites recommended by the Bundesamt fuer Sicherheit in der Informationstechnik for TLS 1.2
+RECOMMENDED_CIPHER_SUITES = ['ECDHE-ECDSA-AES128-SHA256',
+                             'ECDHE-ECDSA-AES256-SHA384',
+                             'ECDHE-RSA-AES128-SHA256',
+                             'ECDHE-RSA-AES256-SHA384',
+                             'DHE-DSS-AES128-SHA256',
+                             'DHE-DSS-AES128-GCM-SHA256',
+                             'DHE-DSS-AES256-SHA384',
+                             'DHE-DSS-AES256-GCM-SHA384',
+                             'DHE-RSA-AES128-SHA256',
+                             'DHE-RSA-AES128-GCM-SHA256',
+                             'DHE-RSA-AES256-SHA256',
+                             'DHE-RSA-AES256-GCM-SHA384',
+                             'ECDH-ECDSA-AES128-SHA256',
+                             'ECDH-ECDSA-AES128-GCM-SHA256',
+                             'ECDH-ECDSA-AES256-SHA384',
+                             'ECDH-ECDSA-AES256-GCM-SHA384',
+                             'ECDH-RSA-AES128-SHA256',
+                             'ECDH-RSA-AES128-GCM-SHA256',
+                             'ECDH-RSA-AES256-SHA384',
+                             'ECDH-RSA-AES256-GCM-SHA384']
+
+
 def get_collection(collection_name):
     db_conn = pymongo.MongoClient('mongodb://localhost:27017/')
     db = db_conn.sslyze
@@ -333,17 +356,16 @@ def cert_validity_selfsigned_ok():
     print 'Average validity period in years for validated certs: ' + str(validity_sum['validated']/float(validity_sum_counter['validated']))
 
     # Tikz scatter chart output
-    #print '\n=> SELF-SIGNED'
-    #for days in sorted(validity_days_amount['selfsigned']):
-    #    amount = validity_days_amount['selfsigned'][days]
-    #    if 0 < days <= 40:# and amount > 10:
-    #        print '(' + str(days) + ',' + str(amount/100.0) + ')'
-
-    #print '\n=> VALIDATED'
-    #for days in sorted(validity_days_amount['validated']):
-    #    amount = validity_days_amount['validated'][days]
-    #    if 0 < days <= 40:# and amount > 10:
-    #        print '(' + str(days) + ',' + str(amount/100.0) + ')'
+    print '\n=> SELF-SIGNED'
+    for days in sorted(validity_days_amount['selfsigned']):
+        amount = validity_days_amount['selfsigned'][days]
+        if 0 < days:# <= 40:
+            print '(' + str(days) + ',' + str(amount/100.0) + ')'
+    print '\n=> VALIDATED'
+    for days in sorted(validity_days_amount['validated']):
+        amount = validity_days_amount['validated'][days]
+        if 0 < days:# <= 40:
+            print '(' + str(days) + ',' + str(amount/100.0) + ')'
 
 
 def check_support_tls_versions():
@@ -355,23 +377,124 @@ def check_support_tls_versions():
 
 
 def cipher_suites(tls_version):
-    print generate_headline_output('cipher suites')
+    print generate_headline_output('cipher suites for ' + tls_version)
     collection = get_collection(tls_version)
     all_documents = collection.find({})
 
+    cipher_suite_usages = {}
+    counter = 0
     for document in all_documents:
-        print document
+        if 'results' in document:
+            target_results = document['results']
+            if 'acceptedCipherSuites' in target_results:
+                accepted_suites = target_results['acceptedCipherSuites']
+                if len(accepted_suites) > 0:
+                    for accepted_suite in accepted_suites:
+                        suite_name = accepted_suite['name']
+                        if suite_name in cipher_suite_usages:
+                            cipher_suite_usages[suite_name] += 1
+                        else:
+                            cipher_suite_usages[suite_name] = 1
+            if 'isProtocolSupported' in target_results and target_results['isProtocolSupported']:
+                counter += 1
+
+    usage_sum = {'good': 0, 'bad': 0}
+    usage_counter = {'good': 0, 'bad': 0}
+    for cs_name, cs_usage in sorted(cipher_suite_usages.items(), key=lambda x: x[1], reverse=True):
+        if cs_name in RECOMMENDED_CIPHER_SUITES:
+            recommendation_type = 'good'
+        else:
+            recommendation_type = 'bad'
+        usage_sum[recommendation_type] += cs_usage/float(counter)
+        usage_counter[recommendation_type] += 1
+        print recommendation_type + ': ' + generate_output(cs_name, cs_usage, counter)
+    #if not usage_counter['bad'] == 0:
+    #    print 'Bad percentage:', usage_sum['bad']/usage_counter['bad']
+    #if not usage_counter['good'] == 0:
+    #    print 'Good percentage:', usage_sum['good']/usage_counter['good']
+
+
+def check_support_cipher_suites_for_tls_versions():
+    #cipher_suites('sslv2')
+    #cipher_suites('sslv3')
+    #cipher_suites('tlsv1')
+    #cipher_suites('tlsv1_1')
+    cipher_suites('tlsv1_2')
+
+
+def check_support_only_bsi_recommended_cipher_suites():
+    print generate_headline_output('check which targets support only bsi recommended cipher suites')
+    collection = get_collection('tlsv1_2')
+    all_documents = collection.find({})
+
+    cipher_suite_usages = {'recommended': 0,
+                           'not_recommended': 0}
+    protocol_supported_counter = 0
+    for document in all_documents:
+        target_results = document['results']
+        if 'isProtocolSupported' in target_results and target_results['isProtocolSupported']:
+            protocol_supported_counter += 1
+            if 'results' in document:
+                target_results = document['results']
+                if 'acceptedCipherSuites' in target_results:
+                    accepted_suites = target_results['acceptedCipherSuites']
+                    if len(accepted_suites) > 0:
+                        for accepted_suite in accepted_suites:
+                            recommended = 'recommended'
+                            if not accepted_suite['name'] in RECOMMENDED_CIPHER_SUITES:
+                                recommended = 'not_recommended'
+                                break
+                        cipher_suite_usages[recommended] += 1
+
+    print generate_output('Targets which support only BSI recommended cipher suites', cipher_suite_usages['recommended'], protocol_supported_counter)
+    print generate_output('Targets which support not only BSI recommended cipher suites', cipher_suite_usages['not_recommended'], protocol_supported_counter)
+
+
+def check_support_not_only_bsi_recommended_cipher_suites():
+    print generate_headline_output('check which targets support only bsi recommended cipher suites')
+    collection = get_collection('tlsv1_2')
+    all_documents = collection.find({})
+
+    cipher_suite_usages = {'recommended': 0,
+                           'not_recommended': 0}
+    protocol_supported_counter = 0
+    for document in all_documents:
+        target_results = document['results']
+        if 'isProtocolSupported' in target_results and target_results['isProtocolSupported']:
+            protocol_supported_counter += 1
+            if 'results' in document:
+                target_results = document['results']
+                if 'acceptedCipherSuites' in target_results:
+                    accepted_suites = target_results['acceptedCipherSuites']
+                    if len(accepted_suites) > 0:
+                        for accepted_suite in accepted_suites:
+                            recommended = 'not_recommended'
+                            if accepted_suite['name'] in RECOMMENDED_CIPHER_SUITES:
+                                recommended = 'recommended'
+                                break
+                        cipher_suite_usages[recommended] += 1
+
+    print generate_output('Targets which support only BSI non-recommended cipher suites', cipher_suite_usages['recommended'], protocol_supported_counter)
+    print generate_output('Targets which support not only BSI non-recommended cipher suites', cipher_suite_usages['not_recommended'], protocol_supported_counter)
+
+
+def bsi_check():
+    check_support_only_bsi_recommended_cipher_suites()
+    check_support_not_only_bsi_recommended_cipher_suites()
+
 
 def main():
     #dane_support()
-    #heartbleed_vulnerability()
-    #check_support_tls_versions()
-    #cert_validity_with_key_length()
-    #cert_key_length()
     #cert_chain_validation()
-    #cert_validity()
+    #cert_key_length()
     #cert_validity_selfsigned_ok()
-    cipher_suites('sslv2')
+    #check_support_tls_versions()
+    #check_support_cipher_suites_for_tls_versions()
+    #bsi_check()
+    #heartbleed_vulnerability()
+
+    #cert_validity()
+    #cert_validity_with_key_length()
     pass
 
 
