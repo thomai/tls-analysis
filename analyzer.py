@@ -49,8 +49,8 @@ def generate_output(text, findings, base_value):
 
 
 def generate_headline_output(text):
-    output = ('-' * 70) + '\n' + text.upper() + '\n'
-    output += ('=' * len(text))
+    output = '\n' + ('-' * 70) + '\n\t' + text.upper() + '\n'
+    output += '\t' + ('=' * len(text)) + '\n'
     return output
 
 
@@ -407,8 +407,8 @@ def cipher_suites(tls_version):
             recommendation_type = 'bad'
         usage_sum[recommendation_type] += cs_usage/float(counter)
         usage_counter[recommendation_type] += 1
-        if 'good' in recommendation_type:
-            print recommendation_type + ': ' + generate_output(cs_name, cs_usage, counter)
+        #if 'good' in recommendation_type:
+        print recommendation_type + ': ' + generate_output(cs_name, cs_usage, counter)
     #if not usage_counter['bad'] == 0:
     #    print 'Bad percentage:', usage_sum['bad']/usage_counter['bad']
     #if not usage_counter['good'] == 0:
@@ -528,8 +528,13 @@ def main():
     #check_support_cipher_suites_for_tls_versions()
     #bsi_check()
     #check_ciphers_for_all_versions_for_pattern('NULL')
-    check_ciphers_for_all_versions_for_pattern('EXP')
-    #heartbleed_vulnerability()
+    #check_ciphers_for_all_versions_for_pattern('ADH')
+    #check_ciphers_for_all_versions_for_pattern('AECDH')
+    #check_ciphers_for_all_versions_for_pattern('EXP')
+    #check_ciphers_for_all_versions_for_pattern('MD5')
+    #check_ciphers_for_all_versions_for_pattern('RC4')
+    #check_ciphers_for_all_versions_for_pattern('IDEA')
+    heartbleed_vulnerability()
 
 
 if __name__ == "__main__":
