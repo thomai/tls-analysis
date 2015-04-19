@@ -246,6 +246,8 @@ def cert_chain_validation():
                     break
             if not found_one:
                 results['others'] += 1
+        else:
+            count_all -= 1
 
     for key in sorted(results):
         print generate_output(key, results[key], count_all)
@@ -521,7 +523,7 @@ def check_ciphers_for_all_versions_for_pattern(pattern):
 
 def main():
     #dane_support()
-    #cert_chain_validation()
+    cert_chain_validation()
     #cert_key_length()
     #cert_validity_selfsigned_ok()
     #check_support_tls_versions()
@@ -534,7 +536,7 @@ def main():
     #check_ciphers_for_all_versions_for_pattern('MD5')
     #check_ciphers_for_all_versions_for_pattern('RC4')
     #check_ciphers_for_all_versions_for_pattern('IDEA')
-    heartbleed_vulnerability()
+    #heartbleed_vulnerability()
 
 
 if __name__ == "__main__":
