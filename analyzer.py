@@ -83,9 +83,26 @@ def heartbleed_vulnerability():
     collection = get_collection('heartbleed')
     all_documents = collection.find({})
 
-    results = collection.find({'results.isVulnerable': True})
-    findings, base_value = results.count(), all_documents.count()
-    print generate_output('Vulnerable for Heartbleed', findings, base_value)
+    #results = collection.find({'results.isVulnerable': True})
+    #findings, base_value = results.count(), all_documents.count()
+    #print generate_output('Vulnerable for Heartbleed', findings, base_value)
+
+    base_value = 0
+    heartbleed_results = {'timeout': 0, 'vulnerable': 0, 'not_vulnerable': 0}
+    for document in all_documents:
+        results = document['results']
+        if 'isVulnerable' in results:
+            base_value += 1
+            note = results['note']
+            if 'Connection timed out at receiving after heartbleed payload.' in note:
+                heartbleed_results['timeout'] += 1
+            elif 'VULNERABLE - Server is vulnerable to Heartbleed' in note:
+                heartbleed_results['vulnerable'] += 1
+            else:
+                heartbleed_results['not_vulnerable'] += 1
+    print generate_output('Vulnerable for Heartbleed', heartbleed_results['vulnerable'], base_value)
+    print generate_output('Not vulnerable for Heartbleed', heartbleed_results['not_vulnerable'], base_value)
+    print generate_output('Timeout', heartbleed_results['timeout'], base_value)
 
 
 def tls_support(tls_version):
@@ -159,7 +176,6 @@ def cert_key_length():
     print generate_headline_output('certificate key length')
     collection = get_collection('certinfo')
     all_documents = collection.find({})
-    count_all = all_documents.count()
 
     key_size_count = {'x<1024': 0,
                       '1024<=x<2048': 0,
@@ -245,7 +261,8 @@ def cert_chain_validation():
                     found_one = True
                     break
             if not found_one:
-                results['others'] += 1
+                #results['others'] += 1
+                count_all -= 1
         else:
             count_all -= 1
 
@@ -523,7 +540,7 @@ def check_ciphers_for_all_versions_for_pattern(pattern):
 
 def main():
     #dane_support()
-    cert_chain_validation()
+    #cert_chain_validation()
     #cert_key_length()
     #cert_validity_selfsigned_ok()
     #check_support_tls_versions()
@@ -536,7 +553,7 @@ def main():
     #check_ciphers_for_all_versions_for_pattern('MD5')
     #check_ciphers_for_all_versions_for_pattern('RC4')
     #check_ciphers_for_all_versions_for_pattern('IDEA')
-    #heartbleed_vulnerability()
+    heartbleed_vulnerability()
 
 
 if __name__ == "__main__":
